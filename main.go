@@ -61,7 +61,7 @@ func main() {
 		cnt = 0
 
 		if data[0] > 30 {
-			fmt.Printf("Load average is too high: %v\n", data[0])
+			fmt.Printf("Load Average is too high: %v\n", data[0])
 		}
 
 		if data[1] > 0 {

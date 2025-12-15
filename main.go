@@ -9,113 +9,83 @@ import (
 	"time"
 )
 
-const (
-	url           = "http://srv.msk01.gigacorp.local/_stats"
-	checkInterval = 5 * time.Second
-)
-
 func main() {
-	consecutiveErrors := 0
-
+	cnt := 0
 	for {
-		resp, err := http.Get(url)
-
+		resp, err := http.Get("http://srv.msk01.gigacorp.local/_stats")
 		if err != nil || resp.StatusCode != 200 {
-			consecutiveErrors++
-			if consecutiveErrors >= 3 {
+			cnt++
+			if cnt >= 3 {
 				fmt.Println("Unable to fetch server statistic")
 			}
 			if resp != nil && resp.Body != nil {
 				resp.Body.Close()
 			}
-			time.Sleep(checkInterval)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		body, err := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
-		if err != nil {
-			consecutiveErrors++
-			if consecutiveErrors >= 3 {
+		arr := strings.Split(strings.TrimSpace(string(body)), ",")
+
+		if len(arr) != 7 {
+			cnt++
+			if cnt >= 3 {
 				fmt.Println("Unable to fetch server statistic")
 			}
-			time.Sleep(checkInterval)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		dataStr := strings.TrimSpace(string(body))
-		parts := strings.Split(dataStr, ",")
-
-		if len(parts) != 7 {
-			consecutiveErrors++
-			if consecutiveErrors >= 3 {
-				fmt.Println("Unable to fetch server statistic")
-			}
-			time.Sleep(checkInterval)
-			continue
-		}
-
-		values := make([]float64, 7)
-		parseError := false
-		for i, v := range parts {
-			val, err := strconv.ParseFloat(v, 64)
+		data := make([]float64, 7)
+		badData := false
+		for i, v := range arr {
+			f, err := strconv.ParseFloat(v, 64)
 			if err != nil {
-				parseError = true
+				badData = true
 				break
 			}
-			values[i] = val
+			data[i] = f
 		}
 
-		if parseError {
-			consecutiveErrors++
-			if consecutiveErrors >= 3 {
+		if badData {
+			cnt++
+			if cnt >= 3 {
 				fmt.Println("Unable to fetch server statistic")
 			}
-			time.Sleep(checkInterval)
+			time.Sleep(5 * time.Second)
 			continue
 		}
+		cnt = 0
 
-		consecutiveErrors = 0
-
-		loadAvg := values[0]
-		memTotal := values[1]
-		memUsed := values[2]
-		diskTotal := values[3]
-		diskUsed := values[4]
-		netTotal := values[5]
-		netUsed := values[6]
-
-		if loadAvg > 30 {
-			fmt.Printf("Load Average is too high: %v\n", loadAvg)
+		if data[0] > 30 {
+			fmt.Printf("Load average is too high: %v\n", data[0])
 		}
 
-		if memTotal > 0 {
-			memUsagePercent := (memUsed / memTotal) * 100
-			if memUsagePercent > 80 {
-				fmt.Printf("Memory usage too high: %d%%\n", int(memUsagePercent))
+		if data[1] > 0 {
+			usage := (data[2] / data[1]) * 100
+			if usage > 80 {
+				fmt.Printf("Memory usage too high: %d%%\n", int(usage))
 			}
 		}
 
-		if diskTotal > 0 {
-			diskUsagePercent := (diskUsed / diskTotal) * 100
-			if diskUsagePercent > 90 {
-				freeBytes := diskTotal - diskUsed
-				freeMb := int(freeBytes / 1024 / 1024)
-				fmt.Printf("Free disk space is too low: %d Mb left\n", freeMb)
+		if data[3] > 0 {
+			usage := (data[4] / data[3]) * 100
+			if usage > 90 {
+
+				fmt.Printf("Free disk space is too low: %d Mb left\n", int((data[3]-data[4])/1024/1024))
 			}
 		}
 
-		if netTotal > 0 {
-			netUsagePercent := (netUsed / netTotal) * 100
-			if netUsagePercent > 90 {
-				freeBytes := netTotal - netUsed
-				freeBits := freeBytes * 8
-				freeMbit := int(freeBits / 1000 / 1000)
-				fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", freeMbit)
+		if data[5] > 0 {
+			usage := (data[6] / data[5]) * 100
+			if usage > 90 {
+				fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", int((data[5]-data[6])/1000/1000))
 			}
 		}
 
-		time.Sleep(checkInterval)
+		time.Sleep(5 * time.Second)
 	}
 }
